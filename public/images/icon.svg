@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- Shield body - rounded top, flat bottom -->
+  <path d="M64 8 L108 28 L108 68 Q108 104 64 120 Q20 104 20 68 L20 28 Z"
+        fill="#2563EB" stroke="#1D4ED8" stroke-width="2"/>
+  <!-- Shield highlight (inner lighter area) -->
+  <path d="M64 14 L102 32 L102 66 Q102 98 64 114 Q26 98 26 66 L26 32 Z"
+        fill="#3B82F6" opacity="0.6"/>
+  <!-- Keyhole circle -->
+  <circle cx="64" cy="56" r="16" fill="white"/>
+  <!-- Keyhole slot (narrow vertical rectangle going down from circle) -->
+  <rect x="58" y="56" width="12" height="28" rx="3" fill="white"/>
+  <!-- Subtle inner shadow on keyhole circle for depth -->
+  <circle cx="64" cy="56" r="12" fill="#2563EB" opacity="0.15"/>
+</svg>

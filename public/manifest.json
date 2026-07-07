@@ -1,0 +1,36 @@
+{
+  "name": "account-manage-plugin",
+  "version": "1.0",
+  "description": "个人帐号管理",
+  "manifest_version": 3,
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": ["<all_urls>"],
+  "icons": {
+    "16": "images/icon16.png",
+    "32": "images/icon32.png",
+    "48": "images/icon48.png",
+    "128": "images/icon128.png"
+  },
+  "action": {
+    "default_icon": "images/icon48.png",
+    "default_popup": "index.html",
+    "default_title": "帐号管理插件"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["insert.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

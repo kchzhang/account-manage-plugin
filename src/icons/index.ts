@@ -1,0 +1,15 @@
+export { default as IconSettings } from './IconSettings.vue';
+export { default as IconChevronLeft } from './IconChevronLeft.vue';
+export { default as IconPlus } from './IconPlus.vue';
+export { default as IconCheck } from './IconCheck.vue';
+export { default as IconEdit } from './IconEdit.vue';
+export { default as IconTrash } from './IconTrash.vue';
+export { default as IconMonitor } from './IconMonitor.vue';
+export { default as IconEye } from './IconEye.vue';
+export { default as IconEyeOff } from './IconEyeOff.vue';
+export { default as IconMinimize } from './IconMinimize.vue';
+export { default as IconMaximize } from './IconMaximize.vue';
+export { default as IconClose } from './IconClose.vue';
+export { default as IconSidebar } from './IconSidebar.vue';
+export { default as IconResize } from './IconResize.vue';
+export { default as IconLogin } from './IconLogin.vue';
