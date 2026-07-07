@@ -89,6 +89,55 @@ function fillInput(el: HTMLInputElement, value: string): boolean {
   return filledOk;
 }
 
+// ── 协议勾选 ──
+
+/**
+ * 在容器内勾选所有可见的 checkbox（协议/条款勾选框）
+ * 策略：找到容器内所有可见的 input[type=checkbox]，如果未选中则自动勾选
+ */
+function checkAgreementCheckbox(container: HTMLElement): number {
+  const checkboxes = Array.from(container.querySelectorAll<HTMLInputElement>(
+    'input[type="checkbox"]',
+  ))
+    .filter(isVisible);
+
+  console.log('[autoLogin] checkAgreementCheckbox — 可见 checkbox 数=%d', checkboxes.length);
+
+  let checkedCount = 0;
+  for (const cb of checkboxes) {
+    if (cb.checked) {
+      console.log('[autoLogin] checkAgreementCheckbox — 已选中, 跳过: name=%s id=%s', cb.name || '(无名)', cb.id || '(无名)');
+      continue;
+    }
+
+    // 清除 React _valueTracker，防止 React 跳过 onChange
+    const tracker = (cb as any)._valueTracker;
+    if (tracker) {
+      tracker.setValue('false');
+      console.log('[autoLogin] checkAgreementCheckbox — React _valueTracker 已清除');
+    }
+
+    // 使用原生 setter 设置 checked
+    const nativeCheckedSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked')?.set;
+    if (nativeCheckedSetter) {
+      nativeCheckedSetter.call(cb, true);
+      console.log('[autoLogin] checkAgreementCheckbox — 使用原生 setter 选中');
+    } else {
+      cb.checked = true;
+      console.log('[autoLogin] checkAgreementCheckbox — 直接赋值选中');
+    }
+
+    // 触发事件
+    cb.dispatchEvent(new Event('change', { bubbles: true }));
+    cb.dispatchEvent(new Event('input', { bubbles: true }));
+
+    checkedCount++;
+    console.log('[autoLogin] checkAgreementCheckbox ✓ — 已勾选: name=%s id=%s', cb.name || '(无名)', cb.id || '(无名)');
+  }
+
+  return checkedCount;
+}
+
 // ── DOM 上下文查找 ──
 
 /**
@@ -326,6 +375,10 @@ export async function autoLogin(
   const pwdOk = fillInput(pwdEl, password);
   if (pwdOk) filled = true;
   console.log('[autoLogin] 密码填充 %s', pwdOk ? '✓' : '❌');
+
+  // 勾选协议 checkbox
+  const checkedCount = checkAgreementCheckbox(container);
+  console.log('[autoLogin] 协议 checkbox 勾选数=%d', checkedCount);
 
   // 提交
   let submitted = false;
