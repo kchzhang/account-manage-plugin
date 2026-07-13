@@ -56,7 +56,10 @@ async function handleLogin(id: string) {
   const needNavigate = account.url && tab.url && !isSamePage(tab.url, account.url);
 
   if (needNavigate) {
-    const targetUrl = account.url!.startsWith('http') ? account.url! : `https://${account.url!}`;
+    const rawTarget = account.url!.startsWith('http') ? account.url! : `https://${account.url!}`;
+    const targetUrlObj = new URL(rawTarget);
+    targetUrlObj.searchParams.set('auto_login', '1');
+    const targetUrl = targetUrlObj.toString();
     console.log('[Popup] 需要导航, 从 %s 到 %s', tab.url, targetUrl);
     await chrome.tabs.update(tab.id, { url: targetUrl });
 
@@ -72,6 +75,31 @@ async function handleLogin(id: string) {
       };
       chrome.tabs.onUpdated.addListener(listener);
       // 10秒超时：如果 Chrome 没触发 reload（同 URL 等），继续执行
+      setTimeout(() => {
+        if (!resolved) {
+          chrome.tabs.onUpdated.removeListener(listener);
+          console.log('[Popup] onUpdated 超时，继续执行');
+          resolve();
+        }
+      }, 10000);
+    });
+  } else {
+    // 同页面：在当前 URL 加上 auto_login 标识后刷新
+    const currentUrlObj = new URL(tab.url!);
+    currentUrlObj.searchParams.set('auto_login', '1');
+    await chrome.tabs.update(tab.id, { url: currentUrlObj.toString() });
+
+    // 等待页面加载完成，带超时保护
+    await new Promise<void>((resolve) => {
+      let resolved = false;
+      const listener = (updatedTabId: number, info: { status?: string }) => {
+        if (updatedTabId === tab.id && info.status === 'complete') {
+          chrome.tabs.onUpdated.removeListener(listener);
+          resolved = true;
+          resolve();
+        }
+      };
+      chrome.tabs.onUpdated.addListener(listener);
       setTimeout(() => {
         if (!resolved) {
           chrome.tabs.onUpdated.removeListener(listener);

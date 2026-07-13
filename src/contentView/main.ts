@@ -145,11 +145,26 @@ async function tryAutoFill() {
   }
 }
 
+// ── URL 自动登录标识检测 ──
+function shouldAutoLogin(): boolean {
+  const url = new URL(window.location.href);
+  return url.searchParams.has('auto_login');
+}
+
+function cleanAutoLoginParam(): void {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('auto_login');
+  window.history.replaceState({}, '', url.toString());
+}
+
 // 页面加载时即注入 insert script
 injectInsertScript();
 
-// 主动尝试自动填充
-tryAutoFill();
+// 只有 URL 带 auto_login 标识时才触发自动填充
+if (shouldAutoLogin()) {
+  cleanAutoLoginParam();
+  tryAutoFill();
+}
 
 // 监听来自 background 的消息，转发给 insert script
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
