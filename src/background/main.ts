@@ -62,13 +62,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       // accountId 未匹配时，用 URL 匹配
       if (!matched && url) {
-        // URL 匹配时需排除 auto_login 等临时参数，使用清理后的 URL
-        // 清理 URL 中的临时标识参数（使用常量构造正则，消除魔法字符串）
-        const cleanUrl = url
-          .replace(new RegExp(`[?&]${AUTO_LOGIN_PARAM}=[^&]*&?`), '')
-          .replace(new RegExp(`[?&]${AUTO_LOGIN_ACCOUNT_ID_PARAM}=[^&]*&?`), '')
-          .replace(/&&/g, '&')
-          .replace(/[?&]$/, '');
+        // 用 URL API 清理临时标识参数（比正则更可靠，无边界缺陷）
+        let cleanUrl = url;
+        try {
+          const urlObj = new URL(url);
+          urlObj.searchParams.delete(AUTO_LOGIN_PARAM);
+          urlObj.searchParams.delete(AUTO_LOGIN_ACCOUNT_ID_PARAM);
+          cleanUrl = urlObj.toString();
+        } catch {
+          // URL 解析失败时用原始 URL 直接匹配
+        }
         matched = accounts.find(a => a.url && isSamePage(cleanUrl, a.url));
         console.log('[Background] URL 匹配: cleanUrl=%s, found=%s', cleanUrl, matched ? matched.name : '无');
       }
