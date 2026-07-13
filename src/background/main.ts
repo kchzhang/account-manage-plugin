@@ -1,5 +1,6 @@
 // Chrome 插件 background service worker — 消息转发 + 凭据数据服务
 import { MSG_TYPE_PING, MSG_TYPE_LOGIN_REQUEST, MSG_TYPE_CREDENTIAL_REQUEST, AUTO_LOGIN_PARAM, AUTO_LOGIN_ACCOUNT_ID_PARAM } from '@/constants/protocol';
+import { removeCacheBustParam } from '@/utils/urlCacheBust';
 import { isSamePage } from '@/utils/urlMatch';
 
 console.log('Background service worker loaded');
@@ -68,6 +69,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const urlObj = new URL(url);
           urlObj.searchParams.delete(AUTO_LOGIN_PARAM);
           urlObj.searchParams.delete(AUTO_LOGIN_ACCOUNT_ID_PARAM);
+          removeCacheBustParam(urlObj);
           cleanUrl = urlObj.toString();
         } catch {
           // URL 解析失败时用原始 URL 直接匹配

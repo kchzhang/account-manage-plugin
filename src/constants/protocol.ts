@@ -17,3 +17,6 @@ export const AUTO_LOGIN_VALUE = '1';
 
 /** URL 精确账号标识参数名（可选，用于 Pull 模型精确匹配） */
 export const AUTO_LOGIN_ACCOUNT_ID_PARAM = '__am_aid';
+
+/** 缓存破坏参数名（时间戳，防止浏览器缓存旧页面） */
+export const CACHE_BUST_PARAM = '__am_t';

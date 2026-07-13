@@ -10,6 +10,7 @@ import {
   AUTO_LOGIN_PARAM, AUTO_LOGIN_ACCOUNT_ID_PARAM,
 } from '@/constants/protocol';
 import { CREDENTIAL_REQUEST_TIMEOUT_MS } from '@/constants/config';
+import { removeCacheBustParam } from '@/utils/urlCacheBust';
 
 console.log('[AccountManage] Insert script loaded');
 (window as any).__accountManageInsertLoaded = true;
@@ -32,6 +33,7 @@ async function requestCredentialsIfNeeded(): Promise<void> {
   // 清理 URL 参数（在请求之前清理，避免凭据请求中携带临时参数影响匹配）
   url.searchParams.delete(AUTO_LOGIN_PARAM);
   url.searchParams.delete(AUTO_LOGIN_ACCOUNT_ID_PARAM);
+  removeCacheBustParam(url);
   window.history.replaceState({}, '', url.toString());
 
   console.log('[Insert] Pull 模式触发, accountId=%s, cleanedUrl=%s', accountId, window.location.href);

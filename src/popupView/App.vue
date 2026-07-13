@@ -5,6 +5,7 @@ import { useAccounts } from './composables/useAccounts';
 import type { AccountItem, ExportData } from '@/types/account';
 import { MSG_TYPE_PING, MSG_TYPE_LOGIN_REQUEST, AUTO_LOGIN_PARAM, AUTO_LOGIN_VALUE, AUTO_LOGIN_ACCOUNT_ID_PARAM } from '@/constants/protocol';
 import { AUTO_LOGIN_ENABLED, PING_MAX_RETRIES, PING_INTERVAL_MS } from '@/constants/config';
+import { addCacheBustParam } from '@/utils/urlCacheBust';
 import AccountList from './components/AccountList.vue';
 import AccountForm from './components/AccountForm.vue';
 import ImportExport from './components/ImportExport.vue';
@@ -61,6 +62,7 @@ async function handleLogin(id: string) {
   if (needNavigate) {
     const rawTarget = account.url!.startsWith('http') ? account.url! : `https://${account.url!}`;
     const targetUrlObj = new URL(rawTarget);
+    addCacheBustParam(targetUrlObj);
     if (AUTO_LOGIN_ENABLED) {
       targetUrlObj.searchParams.set(AUTO_LOGIN_PARAM, AUTO_LOGIN_VALUE);
       targetUrlObj.searchParams.set(AUTO_LOGIN_ACCOUNT_ID_PARAM, account.id);
@@ -71,6 +73,7 @@ async function handleLogin(id: string) {
   } else {
     // 同页面：在当前 URL 加上 auto_login 标识后刷新（仅当开关开启）
     const currentUrlObj = new URL(tab.url!);
+    addCacheBustParam(currentUrlObj);
     if (AUTO_LOGIN_ENABLED) {
       currentUrlObj.searchParams.set(AUTO_LOGIN_PARAM, AUTO_LOGIN_VALUE);
       currentUrlObj.searchParams.set(AUTO_LOGIN_ACCOUNT_ID_PARAM, account.id);
