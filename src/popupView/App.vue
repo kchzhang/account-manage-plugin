@@ -29,7 +29,7 @@ function handleEdit(id: string) {
   navigate('edit', { accountId: id });
 }
 
-async function handleSave(data: { name: string; username: string; password: string; url: string }) {
+async function handleSave(data: { name: string; username: string; password: string; url: string; icon?: string }) {
   if (currentView.value === 'add') {
     await add(data);
   } else if (currentView.value === 'edit' && viewParams.value.accountId) {

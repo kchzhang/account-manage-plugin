@@ -4,6 +4,7 @@ export interface AccountItem {
   username: string;
   password: string;
   url: string;
+  icon?: string;
   createdAt: number;
   updatedAt: number;
 }

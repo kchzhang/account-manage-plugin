@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { IconChevronLeft, IconCheck, IconEye, IconEyeOff } from '@/icons';
+import { IconChevronLeft, IconCheck, IconEye, IconEyeOff, ACCOUNT_ICON_OPTIONS } from '@/icons';
 import type { AccountItem } from '@/types/account';
 
 const props = defineProps<{
@@ -9,7 +9,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  save: [data: { name: string; username: string; password: string; url: string }];
+  save: [data: { name: string; username: string; password: string; url: string; icon?: string }];
   back: [];
 }>();
 
@@ -17,6 +17,7 @@ const name = ref('');
 const username = ref('');
 const password = ref('');
 const url = ref('');
+const icon = ref('default');
 const showPassword = ref(false);
 
 onMounted(() => {
@@ -25,6 +26,7 @@ onMounted(() => {
     username.value = props.account.username;
     password.value = props.account.password;
     url.value = props.account.url;
+    icon.value = props.account.icon || '';
   }
 });
 
@@ -39,6 +41,7 @@ function handleSave() {
     username: username.value.trim(),
     password: password.value,
     url: url.value.trim(),
+    icon: icon.value || undefined,
   });
 }
 </script>
@@ -68,6 +71,18 @@ function handleSave() {
           placeholder="如：GitHub、邮箱"
           class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
         />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">图标</label>
+        <select
+          v-model="icon"
+          class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
+        >
+          <option v-for="opt in ACCOUNT_ICON_OPTIONS" :key="opt.key" :value="opt.key">
+            {{ opt.label }}
+          </option>
+        </select>
       </div>
 
       <div>

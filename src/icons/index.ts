@@ -13,3 +13,5 @@ export { default as IconClose } from './IconClose.vue';
 export { default as IconSidebar } from './IconSidebar.vue';
 export { default as IconResize } from './IconResize.vue';
 export { default as IconLogin } from './IconLogin.vue';
+export { default as AccountIcon } from './AccountIcon.vue';
+export { ACCOUNT_ICON_OPTIONS, getAccountIconUrl } from './account/config';

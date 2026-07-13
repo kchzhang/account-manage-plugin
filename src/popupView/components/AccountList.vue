@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { IconPlus, IconEdit, IconTrash, IconEye, IconEyeOff, IconLogin } from '@/icons';
+import { IconPlus, IconEdit, IconTrash, IconEye, IconEyeOff, IconLogin, AccountIcon } from '@/icons';
 import type { AccountItem } from '@/types/account';
 import ConfirmDialog from './ConfirmDialog.vue';
 
@@ -184,6 +184,8 @@ function confirmDelete() {
             :key="item.id"
             class="flex items-center gap-3 p-3 mb-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group"
           >
+            <!-- Icon -->
+            <AccountIcon v-if="item.icon" :icon="item.icon" class="w-6 h-6 shrink-0" />
             <!-- Info -->
             <div class="flex-1 min-w-0">
               <div class="text-sm font-medium text-gray-900 truncate">{{ item.name }}</div>
