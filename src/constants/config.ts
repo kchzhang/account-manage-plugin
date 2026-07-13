@@ -11,6 +11,9 @@ export const AUTO_FILL_REQUEST_TIMEOUT_MS = 5000;
 /** LOGIN_REQUEST 消息超时（content onMessage 等待 insert 回传） */
 export const LOGIN_REQUEST_TIMEOUT_MS = 8000;
 
+/** CREDENTIAL_REQUEST 消息超时（Insert 等待凭据响应的全链路超时） */
+export const CREDENTIAL_REQUEST_TIMEOUT_MS = 10000;
+
 /** 页面 load 事件等待超时 */
 export const PAGE_LOAD_WAIT_TIMEOUT_MS = 3000;
 

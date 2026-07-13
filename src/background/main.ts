@@ -1,5 +1,6 @@
-// Chrome 插件 background service worker — 仅做消息转发
-import { MSG_TYPE_PING, MSG_TYPE_LOGIN_REQUEST } from '@/constants/protocol';
+// Chrome 插件 background service worker — 消息转发 + 凭据数据服务
+import { MSG_TYPE_PING, MSG_TYPE_LOGIN_REQUEST, MSG_TYPE_CREDENTIAL_REQUEST, AUTO_LOGIN_PARAM, AUTO_LOGIN_ACCOUNT_ID_PARAM } from '@/constants/protocol';
+import { isSamePage } from '@/utils/urlMatch';
 
 console.log('Background service worker loaded');
 
@@ -36,6 +37,51 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       } else {
         console.log('[Background] tabs.sendMessage 成功, response=%s', JSON.stringify(response));
         sendResponse({ success: true, data: response });
+      }
+    });
+
+    return true; // 异步 sendResponse
+  }
+
+  if (message.type === MSG_TYPE_CREDENTIAL_REQUEST) {
+    // 凭据数据服务：Insert 主动 Pull，Background 从 Storage 匹配账号
+    const { url, accountId } = message.data;
+    console.log('[Background] 收到 CREDENTIAL_REQUEST, url=%s, accountId=%s', url, accountId);
+
+    chrome.storage.local.get(['account_data'], (result) => {
+      const store = result['account_data'] as { accounts: Array<{ id: string; name: string; username: string; password: string; url: string }> } | undefined;
+      const accounts = store?.accounts || [];
+
+      let matched: { id: string; name: string; username: string; password: string; url: string } | undefined;
+
+      // 优先用 accountId 精确匹配
+      if (accountId) {
+        matched = accounts.find(a => a.id === accountId);
+        console.log('[Background] accountId 精确匹配: found=%s', matched ? matched.name : '无');
+      }
+
+      // accountId 未匹配时，用 URL 匹配
+      if (!matched && url) {
+        // URL 匹配时需排除 auto_login 等临时参数，使用清理后的 URL
+        // 清理 URL 中的临时标识参数（使用常量构造正则，消除魔法字符串）
+        const cleanUrl = url
+          .replace(new RegExp(`[?&]${AUTO_LOGIN_PARAM}=[^&]*&?`), '')
+          .replace(new RegExp(`[?&]${AUTO_LOGIN_ACCOUNT_ID_PARAM}=[^&]*&?`), '')
+          .replace(/&&/g, '&')
+          .replace(/[?&]$/, '');
+        matched = accounts.find(a => a.url && isSamePage(cleanUrl, a.url));
+        console.log('[Background] URL 匹配: cleanUrl=%s, found=%s', cleanUrl, matched ? matched.name : '无');
+      }
+
+      if (matched) {
+        console.log('[Background] CREDENTIAL_RESPONSE — 匹配账号: name=%s username=%s', matched.name, matched.username);
+        sendResponse({
+          matched: true,
+          data: { username: matched.username, password: matched.password, autoSubmit: true },
+        });
+      } else {
+        console.log('[Background] CREDENTIAL_RESPONSE — 无匹配账号');
+        sendResponse({ matched: false });
       }
     });
 

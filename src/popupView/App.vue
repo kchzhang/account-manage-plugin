@@ -3,8 +3,8 @@ import { ref, onMounted } from 'vue';
 import { useViewRouter } from './composables/useViewRouter';
 import { useAccounts } from './composables/useAccounts';
 import type { AccountItem, ExportData } from '@/types/account';
-import { MSG_TYPE_PING, MSG_TYPE_LOGIN_REQUEST, AUTO_LOGIN_PARAM, AUTO_LOGIN_VALUE } from '@/constants/protocol';
-import { AUTO_LOGIN_ENABLED, PING_MAX_RETRIES, PING_INTERVAL_MS, TAB_NAVIGATION_TIMEOUT_MS } from '@/constants/config';
+import { MSG_TYPE_PING, MSG_TYPE_LOGIN_REQUEST, AUTO_LOGIN_PARAM, AUTO_LOGIN_VALUE, AUTO_LOGIN_ACCOUNT_ID_PARAM } from '@/constants/protocol';
+import { AUTO_LOGIN_ENABLED, PING_MAX_RETRIES, PING_INTERVAL_MS } from '@/constants/config';
 import AccountList from './components/AccountList.vue';
 import AccountForm from './components/AccountForm.vue';
 import ImportExport from './components/ImportExport.vue';
@@ -53,6 +53,7 @@ async function handleLogin(id: string) {
   // 获取当前活动标签页
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) return;
+  const tabId = tab.id;
 
   // 判断是否需要导航到目标 URL
   const needNavigate = account.url && tab.url && !isSamePage(tab.url, account.url);
@@ -62,77 +63,36 @@ async function handleLogin(id: string) {
     const targetUrlObj = new URL(rawTarget);
     if (AUTO_LOGIN_ENABLED) {
       targetUrlObj.searchParams.set(AUTO_LOGIN_PARAM, AUTO_LOGIN_VALUE);
+      targetUrlObj.searchParams.set(AUTO_LOGIN_ACCOUNT_ID_PARAM, account.id);
     }
     const targetUrl = targetUrlObj.toString();
     console.log('[Popup] 需要导航, 从 %s 到 %s', tab.url, targetUrl);
-    await chrome.tabs.update(tab.id, { url: targetUrl });
-
-    // 等待页面加载完成，带超时保护
-    await new Promise<void>((resolve) => {
-      let resolved = false;
-      const listener = (updatedTabId: number, info: { status?: string }) => {
-        if (updatedTabId === tab.id && info.status === 'complete') {
-          chrome.tabs.onUpdated.removeListener(listener);
-          resolved = true;
-          resolve();
-        }
-      };
-      chrome.tabs.onUpdated.addListener(listener);
-      // 10秒超时：如果 Chrome 没触发 reload（同 URL 等），继续执行
-      setTimeout(() => {
-        if (!resolved) {
-          chrome.tabs.onUpdated.removeListener(listener);
-          console.log('[Popup] onUpdated 超时，继续执行');
-          resolve();
-        }
-      }, TAB_NAVIGATION_TIMEOUT_MS);
-    });
+    await chrome.tabs.update(tabId, { url: targetUrl });
   } else {
     // 同页面：在当前 URL 加上 auto_login 标识后刷新（仅当开关开启）
     const currentUrlObj = new URL(tab.url!);
     if (AUTO_LOGIN_ENABLED) {
       currentUrlObj.searchParams.set(AUTO_LOGIN_PARAM, AUTO_LOGIN_VALUE);
+      currentUrlObj.searchParams.set(AUTO_LOGIN_ACCOUNT_ID_PARAM, account.id);
     }
-    await chrome.tabs.update(tab.id, { url: currentUrlObj.toString() });
-
-    // 等待页面加载完成，带超时保护
-    await new Promise<void>((resolve) => {
-      let resolved = false;
-      const listener = (updatedTabId: number, info: { status?: string }) => {
-        if (updatedTabId === tab.id && info.status === 'complete') {
-          chrome.tabs.onUpdated.removeListener(listener);
-          resolved = true;
-          resolve();
-        }
-      };
-      chrome.tabs.onUpdated.addListener(listener);
-      setTimeout(() => {
-        if (!resolved) {
-          chrome.tabs.onUpdated.removeListener(listener);
-          console.log('[Popup] onUpdated 超时，继续执行');
-          resolve();
-        }
-      }, TAB_NAVIGATION_TIMEOUT_MS);
-    });
+    await chrome.tabs.update(tabId, { url: currentUrlObj.toString() });
   }
 
-  // 无论是否导航，用探针检测 content script 是否就绪
-  // insert script 注入由 contentAutoLogin 的 LOGIN_REQUEST handler 在消息到达时保证
-  await waitForScriptReady(tab.id!);
+  // 用探针检测 content script + insert script 是否完全就绪（不再依赖 onUpdated.complete）
+  await waitForScriptReady(tabId);
 
-  // 发送登录请求 — content+insert 桥接会处理等待和填充
-  // await 确保 message 已发送到 background 后再关闭 popup
+  // 发送登录请求
   await chrome.runtime.sendMessage({
     type: MSG_TYPE_LOGIN_REQUEST,
     data: {
-      tabId: tab.id!,
+      tabId,
       username: account.username,
       password: account.password,
     },
   });
 
-  // 关闭 popup
-  window.close();
+  // 延迟关闭 popup，确保消息通道完整传递（避免 sendResponse 丢失）
+  setTimeout(() => window.close(), 300);
 }
 
 /**
@@ -167,11 +127,12 @@ async function waitForScriptReady(tabId: number, maxRetries = PING_MAX_RETRIES, 
         type: MSG_TYPE_PING,
         data: { tabId },
       });
-      if (response?.ready) {
-        console.log('[Popup] content script 就绪 (第 %d 次探针), insertInjected=%s', i + 1, response.insertInjected);
+      // P0: 同时检查 ready 和 insertInjected，确保 insert script 已注入并就绪
+      if (response?.ready && response?.insertInjected) {
+        console.log('[Popup] content script + insert script 就绪 (第 %d 次探针)', i + 1);
         return;
       } else {
-        console.log('[Popup] PING 返回未就绪 (第 %d 次), response=%s', i + 1, JSON.stringify(response));
+        console.log('[Popup] PING 返回未完全就绪 (第 %d 次), ready=%s, insertInjected=%s', i + 1, response?.ready, response?.insertInjected);
       }
     } catch (e) {
       console.log('[Popup] PING 异常 (第 %d 次), error=%s', i + 1, e);

@@ -1,6 +1,6 @@
 // ── Auto-login 桥接 ──
-import { MSG_TYPE_PING, MSG_TYPE_LOGIN_REQUEST, MSG_TYPE_LOGIN_RESULT, MSG_SOURCE_CONTENT, MSG_SOURCE_INSERT, AUTO_LOGIN_PARAM } from '@/constants/protocol';
-import { AUTO_LOGIN_ENABLED, MAX_AUTO_FILL_RETRIES, AUTO_FILL_RETRY_DELAY_MS, AUTO_FILL_REQUEST_TIMEOUT_MS, LOGIN_REQUEST_TIMEOUT_MS, PAGE_LOAD_WAIT_TIMEOUT_MS } from '@/constants/config';
+import { MSG_TYPE_PING, MSG_TYPE_LOGIN_REQUEST, MSG_TYPE_LOGIN_RESULT, MSG_TYPE_CREDENTIAL_REQUEST, MSG_TYPE_CREDENTIAL_RESPONSE, MSG_SOURCE_CONTENT, MSG_SOURCE_INSERT } from '@/constants/protocol';
+import { LOGIN_REQUEST_TIMEOUT_MS } from '@/constants/config';
 
 console.log('[AccountManage] Content script loaded');
 
@@ -40,134 +40,8 @@ function injectInsertScript(): Promise<void> {
   return _insertScriptPromise;
 }
 
-// ── URL 匹配 ──
-function isSamePage(currentUrl: string, targetUrl: string): boolean {
-  try {
-    const normalizedTarget = targetUrl.startsWith('http') ? targetUrl : `https://${targetUrl}`;
-    const u1 = new URL(currentUrl);
-    const u2 = new URL(normalizedTarget);
-    const p1 = u1.pathname.replace(/\/+$/, '');
-    const p2 = u2.pathname.replace(/\/+$/, '');
-    return u1.origin.toLowerCase() === u2.origin.toLowerCase() && p1.toLowerCase() === p2.toLowerCase();
-  } catch {
-    return currentUrl.includes(targetUrl.replace(/^https?:\/\//, '').toLowerCase());
-  }
-}
+// ── chrome.runtime.onMessage 监听（接收来自 Popup/Background 的消息） ──
 
-// ── 主动自动填充 ──
-
-function sendAutoFillRequest(username: string, password: string): Promise<{ success: boolean; filled: boolean; submitted: boolean; message: string }> {
-  return new Promise((resolve) => {
-    const resultListener = (event: MessageEvent) => {
-      if (event.data?.type === MSG_TYPE_LOGIN_RESULT && event.data?.source === MSG_SOURCE_INSERT) {
-        window.removeEventListener('message', resultListener);
-        resolve(event.data.result);
-      }
-    };
-    window.addEventListener('message', resultListener);
-
-    // 超时兜底
-    setTimeout(() => {
-      window.removeEventListener('message', resultListener);
-      resolve({ success: false, message: '自动填充超时', filled: false, submitted: false });
-    }, AUTO_FILL_REQUEST_TIMEOUT_MS);
-
-    window.postMessage({
-      type: MSG_TYPE_LOGIN_REQUEST,
-      source: MSG_SOURCE_CONTENT,
-      data: { username, password, autoSubmit: true },
-    }, '*');
-  });
-}
-
-async function tryAutoFill() {
-  console.log('[AccountManage] tryAutoFill — 开始检测');
-
-  // 等待页面完全加载
-  if (document.readyState !== 'complete') {
-    console.log('[AccountManage] tryAutoFill — 等待页面加载, readyState=%s', document.readyState);
-    await new Promise<void>((resolve) => {
-      const onLoad = () => {
-        window.removeEventListener('load', onLoad);
-        console.log('[AccountManage] tryAutoFill — 页面 load 事件触发');
-        resolve();
-      };
-      window.addEventListener('load', onLoad);
-      setTimeout(() => {
-        window.removeEventListener('load', onLoad);
-        console.log('[AccountManage] tryAutoFill — 等待页面加载超时，继续执行');
-        resolve();
-      }, PAGE_LOAD_WAIT_TIMEOUT_MS);
-    });
-  } else {
-    console.log('[AccountManage] tryAutoFill — 页面已加载完成');
-  }
-
-  // 确保 insert script 已注入
-  await injectInsertScript();
-
-  // 从 storage 读取账号数据
-  const result = await chrome.storage.local.get(['account_data']);
-  const store = result['account_data'] as { accounts: Array<{ id: string; name: string; username: string; password: string; url: string }> } | undefined;
-  if (!store?.accounts?.length) {
-    console.log('[AccountManage] tryAutoFill — 无账号数据，跳过自动填充');
-    return;
-  }
-
-  // 匹配当前 URL
-  const currentUrl = window.location.href;
-  const matched = store.accounts.find(account => account.url && isSamePage(currentUrl, account.url));
-
-  if (!matched) {
-    console.log('[AccountManage] tryAutoFill — 当前页面无匹配账号，跳过 (url=%s)', currentUrl);
-    return;
-  }
-
-  console.log('[AccountManage] tryAutoFill — 匹配账号: name=%s username=%s', matched.name, matched.username);
-
-  // 重试机制：最多 MAX_AUTO_FILL_RETRIES 次
-  for (let i = 1; i <= MAX_AUTO_FILL_RETRIES; i++) {
-    const fillResult = await sendAutoFillRequest(matched.username, matched.password);
-    console.log('[AccountManage] tryAutoFill — 第%d次尝试: success=%s filled=%s submitted=%s msg="%s"',
-      i, fillResult.success, fillResult.filled, fillResult.submitted, fillResult.message);
-
-    if (fillResult.filled) {
-      _autoFilled = true;
-      console.log('[AccountManage] tryAutoFill — 填充成功，不再重试');
-      return;
-    }
-
-    if (i < MAX_AUTO_FILL_RETRIES) {
-      console.log('[AccountManage] tryAutoFill — 填充失败，%d秒后重试 (剩余%d次)', AUTO_FILL_RETRY_DELAY_MS / 1000, MAX_AUTO_FILL_RETRIES - i);
-      await new Promise(r => setTimeout(r, AUTO_FILL_RETRY_DELAY_MS));
-    } else {
-      console.log('[AccountManage] tryAutoFill — 已达最大重试次数(%d)，放弃自动填充', MAX_AUTO_FILL_RETRIES);
-    }
-  }
-}
-
-// ── URL 自动登录标识检测 ──
-function shouldAutoLogin(): boolean {
-  const url = new URL(window.location.href);
-  return url.searchParams.has(AUTO_LOGIN_PARAM);
-}
-
-function cleanAutoLoginParam(): void {
-  const url = new URL(window.location.href);
-  url.searchParams.delete(AUTO_LOGIN_PARAM);
-  window.history.replaceState({}, '', url.toString());
-}
-
-// 页面加载时即注入 insert script
-injectInsertScript();
-
-// 只有 AUTO_LOGIN_ENABLED 开关开启 且 URL 带 auto_login 标识时才触发自动填充
-if (AUTO_LOGIN_ENABLED && shouldAutoLogin()) {
-  cleanAutoLoginParam();
-  tryAutoFill();
-}
-
-// 监听来自 background 的消息，转发给 insert script
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   console.log('[AccountManage] onMessage 触发, message.type=%s', message.type);
   if (message.type === MSG_TYPE_PING) {
@@ -204,7 +78,46 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 });
 
-// ── Vue UI 挂载（暂不使用） ──
+// ── postMessage 监听（接收来自 Insert 的消息，中转到 Background） ──
+
+window.addEventListener('message', (event) => {
+  const data = event.data;
+
+  // Pull 路径：Insert 主动请求凭据 → Content 转发给 Background → 回传 CREDENTIAL_RESPONSE
+  if (data?.type === MSG_TYPE_CREDENTIAL_REQUEST && data?.source === MSG_SOURCE_INSERT) {
+    const { url, accountId } = data.data;
+    console.log('[AccountManage] 收到 Insert CREDENTIAL_REQUEST, url=%s, accountId=%s', url, accountId);
+
+    _autoFilled = true; // 标记正在处理 Pull 请求
+
+    chrome.runtime.sendMessage({
+      type: MSG_TYPE_CREDENTIAL_REQUEST,
+      data: { url, accountId },
+    }).then((response: any) => {
+      if (response?.matched) {
+        console.log('[AccountManage] Background 匹配成功，转发 CREDENTIAL_RESPONSE 到 Insert');
+        window.postMessage({
+          type: MSG_TYPE_CREDENTIAL_RESPONSE,
+          source: MSG_SOURCE_CONTENT,
+          data: response.data,
+        }, '*');
+      } else {
+        console.log('[AccountManage] Background 无匹配账号，不转发');
+      }
+    }).catch((err) => {
+      console.log('[AccountManage] CREDENTIAL_REQUEST 发送失败: %s', err);
+    });
+  }
+
+  // Pull 路径：Insert 回传登录结果
+  if (data?.type === MSG_TYPE_LOGIN_RESULT && data?.source === MSG_SOURCE_INSERT) {
+    // 如果是 Pull 路径触发的，不需要 sendResponse（没有等待的 chrome.runtime.onMessage）
+    console.log('[AccountManage] 收到 Insert LOGIN_RESULT (Pull 路径): success=%s', data.result?.success);
+  }
+});
+
+// 页面加载时即注入 insert script
+injectInsertScript();
 // const crxApp = document.createElement("div");
 // crxApp.id = "chrome-plugin-container";
 // document.body.appendChild(crxApp);
