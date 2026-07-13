@@ -1,4 +1,5 @@
 import { type Ref, onMounted, onBeforeUnmount } from "vue";
+import { HEADER_HEIGHT } from "@/constants/config";
 
 export function useDraggable(options: {
   posX: Ref<number>;
@@ -29,7 +30,7 @@ export function useDraggable(options: {
     let newX = e.clientX - dragOffsetX;
     let newY = e.clientY - dragOffsetY;
     newX = Math.max(0, Math.min(newX, window.innerWidth - width.value));
-    newY = Math.max(0, Math.min(newY, window.innerHeight - 48));
+    newY = Math.max(0, Math.min(newY, window.innerHeight - HEADER_HEIGHT));
     posX.value = newX;
     posY.value = newY;
   }
@@ -52,7 +53,7 @@ export function useDraggable(options: {
     let newX = touch.clientX - touchDragOffsetX;
     let newY = touch.clientY - touchDragOffsetY;
     newX = Math.max(0, Math.min(newX, window.innerWidth - width.value));
-    newY = Math.max(0, Math.min(newY, window.innerHeight - 48));
+    newY = Math.max(0, Math.min(newY, window.innerHeight - HEADER_HEIGHT));
     posX.value = newX;
     posY.value = newY;
   }

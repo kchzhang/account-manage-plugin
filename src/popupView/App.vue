@@ -3,6 +3,8 @@ import { ref, onMounted } from 'vue';
 import { useViewRouter } from './composables/useViewRouter';
 import { useAccounts } from './composables/useAccounts';
 import type { AccountItem, ExportData } from '@/types/account';
+import { MSG_TYPE_PING, MSG_TYPE_LOGIN_REQUEST, AUTO_LOGIN_PARAM, AUTO_LOGIN_VALUE } from '@/constants/protocol';
+import { AUTO_LOGIN_ENABLED, PING_MAX_RETRIES, PING_INTERVAL_MS, TAB_NAVIGATION_TIMEOUT_MS } from '@/constants/config';
 import AccountList from './components/AccountList.vue';
 import AccountForm from './components/AccountForm.vue';
 import ImportExport from './components/ImportExport.vue';
@@ -58,7 +60,9 @@ async function handleLogin(id: string) {
   if (needNavigate) {
     const rawTarget = account.url!.startsWith('http') ? account.url! : `https://${account.url!}`;
     const targetUrlObj = new URL(rawTarget);
-    targetUrlObj.searchParams.set('auto_login', '1');
+    if (AUTO_LOGIN_ENABLED) {
+      targetUrlObj.searchParams.set(AUTO_LOGIN_PARAM, AUTO_LOGIN_VALUE);
+    }
     const targetUrl = targetUrlObj.toString();
     console.log('[Popup] 需要导航, 从 %s 到 %s', tab.url, targetUrl);
     await chrome.tabs.update(tab.id, { url: targetUrl });
@@ -81,12 +85,14 @@ async function handleLogin(id: string) {
           console.log('[Popup] onUpdated 超时，继续执行');
           resolve();
         }
-      }, 10000);
+      }, TAB_NAVIGATION_TIMEOUT_MS);
     });
   } else {
-    // 同页面：在当前 URL 加上 auto_login 标识后刷新
+    // 同页面：在当前 URL 加上 auto_login 标识后刷新（仅当开关开启）
     const currentUrlObj = new URL(tab.url!);
-    currentUrlObj.searchParams.set('auto_login', '1');
+    if (AUTO_LOGIN_ENABLED) {
+      currentUrlObj.searchParams.set(AUTO_LOGIN_PARAM, AUTO_LOGIN_VALUE);
+    }
     await chrome.tabs.update(tab.id, { url: currentUrlObj.toString() });
 
     // 等待页面加载完成，带超时保护
@@ -106,7 +112,7 @@ async function handleLogin(id: string) {
           console.log('[Popup] onUpdated 超时，继续执行');
           resolve();
         }
-      }, 10000);
+      }, TAB_NAVIGATION_TIMEOUT_MS);
     });
   }
 
@@ -117,7 +123,7 @@ async function handleLogin(id: string) {
   // 发送登录请求 — content+insert 桥接会处理等待和填充
   // await 确保 message 已发送到 background 后再关闭 popup
   await chrome.runtime.sendMessage({
-    type: 'LOGIN_REQUEST',
+    type: MSG_TYPE_LOGIN_REQUEST,
     data: {
       tabId: tab.id!,
       username: account.username,
@@ -154,11 +160,11 @@ function isSamePage(currentUrl: string, targetUrl: string): boolean {
  * insert script 注入由 contentAutoLogin 在收到 LOGIN_REQUEST 时保证（等 onload 后再发 postMessage）
  * 最多重试 20 次（约 10 秒），每次间隔 500ms
  */
-async function waitForScriptReady(tabId: number, maxRetries = 20, interval = 500): Promise<void> {
+async function waitForScriptReady(tabId: number, maxRetries = PING_MAX_RETRIES, interval = PING_INTERVAL_MS): Promise<void> {
   for (let i = 0; i < maxRetries; i++) {
     try {
       const response: any = await chrome.runtime.sendMessage({
-        type: 'PING',
+        type: MSG_TYPE_PING,
         data: { tabId },
       });
       if (response?.ready) {

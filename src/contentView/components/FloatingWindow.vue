@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from "vue";
 import { IconSidebar, IconMinimize, IconMaximize, IconClose, IconResize } from "@/icons";
 import { useDraggable } from "../composables/useDraggable";
 import { useResizable } from "../composables/useResizable";
+import { FLOATING_WINDOW_Z_INDEX, WINDOW_MARGIN } from "@/constants/config";
 
 const props = withDefaults(
   defineProps<{
@@ -39,7 +40,7 @@ const windowStyle = computed(() => ({
   top: `${posY.value}px`,
   width: `${currentWidth.value}px`,
   height: minimized.value ? "auto" : `${currentHeight.value}px`,
-  zIndex: 2147483647,
+  zIndex: FLOATING_WINDOW_Z_INDEX,
 }));
 
 onMounted(() => {
@@ -47,8 +48,8 @@ onMounted(() => {
     posX.value = props.initX;
     posY.value = props.initY;
   } else {
-    posX.value = window.innerWidth - currentWidth.value - 20;
-    posY.value = window.innerHeight - currentHeight.value - 20;
+    posX.value = window.innerWidth - currentWidth.value - WINDOW_MARGIN;
+    posY.value = window.innerHeight - currentHeight.value - WINDOW_MARGIN;
   }
 });
 
@@ -87,7 +88,8 @@ function handleReopen() {
   <!-- 关闭后的浮球 -->
   <div
     v-if="!visible"
-    class="fixed right-5 bottom-5 w-10 h-10 rounded-full bg-sky-500 shadow-[0_2px_12px_rgba(14,165,233,0.35)] cursor-pointer flex items-center justify-center z-[2147483647] transition-all duration-200 hover:bg-sky-400 hover:shadow-[0_4px_16px_rgba(14,165,233,0.45)] hover:scale-105"
+    class="fixed right-5 bottom-5 w-10 h-10 rounded-full bg-sky-500 shadow-[0_2px_12px_rgba(14,165,233,0.35)] cursor-pointer flex items-center justify-center transition-all duration-200 hover:bg-sky-400 hover:shadow-[0_4px_16px_rgba(14,165,233,0.45)] hover:scale-105"
+    :style="{ zIndex: FLOATING_WINDOW_Z_INDEX }"
     @click="handleReopen"
   >
     <IconSidebar class="w-[18px] h-[18px] text-white [&>svg]:stroke-white" />

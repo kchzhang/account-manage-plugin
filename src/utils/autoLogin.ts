@@ -1,10 +1,10 @@
 /**
- * 自动登录 — 自包含函数，供 chrome.scripting.executeScript 注入到目标页面
- * 由于 executeScript 会序列化 func 参数，该函数不能引用任何外部导入
- *
- * 设计思路：以 input[type=password] 为锚点，向上查找容器/form，
- * 在容器上下文中向上/向下查找用户名输入框和提交按钮
+ * 自动登录 — 供 insert script 直接 import 调用
+ * 注意：若需通过 chrome.scripting.executeScript 注入，则不可引用外部导入（序列化限制）
+ * 当前实际通过 import 正常调用，所以可以引用常量模块
  */
+
+import { PAGE_LOAD_WAIT_TIMEOUT_MS, PASSWORD_INPUT_MAX_WAIT_MS, PASSWORD_POLL_INTERVAL_MS, WAIT_FRAMES_TIMEOUT_MS } from '@/constants/config';
 
 // ── 工具函数 ──
 
@@ -12,7 +12,7 @@
  * 带超时兜底的 requestAnimationFrame 等待
  * 防止页面处于后台/未渲染状态时 rAF 不触发导致 Promise 永远挂起
  */
-function waitForFrames(count: number, timeoutMs = 200): Promise<void> {
+function waitForFrames(count: number, timeoutMs = WAIT_FRAMES_TIMEOUT_MS): Promise<void> {
   return new Promise<void>((resolve) => {
     let resolved = false;
     let frameCount = 0;
@@ -282,15 +282,15 @@ function waitForPageLoad(): Promise<void> {
       window.removeEventListener('load', onLoad);
       console.log('[autoLogin] waitForPageLoad ⚠ — 3秒超时，继续执行');
       resolve();
-    }, 3000);
+    }, PAGE_LOAD_WAIT_TIMEOUT_MS);
   });
 }
 
 /**
  * 查找密码输入框（轮询等待）
  */
-function waitForPasswordInput(maxWait = 5000): Promise<HTMLInputElement | null> {
-  const checkInterval = 500;
+function waitForPasswordInput(maxWait = PASSWORD_INPUT_MAX_WAIT_MS): Promise<HTMLInputElement | null> {
+  const checkInterval = PASSWORD_POLL_INTERVAL_MS;
   const startTime = Date.now();
   let pollCount = 0;
 

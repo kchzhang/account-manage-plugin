@@ -1,4 +1,7 @@
 // ── Auto-login 桥接 ──
+import { MSG_TYPE_PING, MSG_TYPE_LOGIN_REQUEST, MSG_TYPE_LOGIN_RESULT, MSG_SOURCE_CONTENT, MSG_SOURCE_INSERT, AUTO_LOGIN_PARAM } from '@/constants/protocol';
+import { AUTO_LOGIN_ENABLED, MAX_AUTO_FILL_RETRIES, AUTO_FILL_RETRY_DELAY_MS, AUTO_FILL_REQUEST_TIMEOUT_MS, LOGIN_REQUEST_TIMEOUT_MS, PAGE_LOAD_WAIT_TIMEOUT_MS } from '@/constants/config';
+
 console.log('[AccountManage] Content script loaded');
 
 let _insertScriptInjected = false;
@@ -52,13 +55,11 @@ function isSamePage(currentUrl: string, targetUrl: string): boolean {
 }
 
 // ── 主动自动填充 ──
-const MAX_AUTO_FILL_RETRIES = 3;
-const RETRY_DELAY_MS = 1000;
 
 function sendAutoFillRequest(username: string, password: string): Promise<{ success: boolean; filled: boolean; submitted: boolean; message: string }> {
   return new Promise((resolve) => {
     const resultListener = (event: MessageEvent) => {
-      if (event.data?.type === 'LOGIN_RESULT' && event.data?.source === 'accountManage-insert') {
+      if (event.data?.type === MSG_TYPE_LOGIN_RESULT && event.data?.source === MSG_SOURCE_INSERT) {
         window.removeEventListener('message', resultListener);
         resolve(event.data.result);
       }
@@ -69,11 +70,11 @@ function sendAutoFillRequest(username: string, password: string): Promise<{ succ
     setTimeout(() => {
       window.removeEventListener('message', resultListener);
       resolve({ success: false, message: '自动填充超时', filled: false, submitted: false });
-    }, 5000);
+    }, AUTO_FILL_REQUEST_TIMEOUT_MS);
 
     window.postMessage({
-      type: 'LOGIN_REQUEST',
-      source: 'accountManage-content',
+      type: MSG_TYPE_LOGIN_REQUEST,
+      source: MSG_SOURCE_CONTENT,
       data: { username, password, autoSubmit: true },
     }, '*');
   });
@@ -96,7 +97,7 @@ async function tryAutoFill() {
         window.removeEventListener('load', onLoad);
         console.log('[AccountManage] tryAutoFill — 等待页面加载超时，继续执行');
         resolve();
-      }, 3000);
+      }, PAGE_LOAD_WAIT_TIMEOUT_MS);
     });
   } else {
     console.log('[AccountManage] tryAutoFill — 页面已加载完成');
@@ -137,8 +138,8 @@ async function tryAutoFill() {
     }
 
     if (i < MAX_AUTO_FILL_RETRIES) {
-      console.log('[AccountManage] tryAutoFill — 填充失败，%d秒后重试 (剩余%d次)', RETRY_DELAY_MS / 1000, MAX_AUTO_FILL_RETRIES - i);
-      await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+      console.log('[AccountManage] tryAutoFill — 填充失败，%d秒后重试 (剩余%d次)', AUTO_FILL_RETRY_DELAY_MS / 1000, MAX_AUTO_FILL_RETRIES - i);
+      await new Promise(r => setTimeout(r, AUTO_FILL_RETRY_DELAY_MS));
     } else {
       console.log('[AccountManage] tryAutoFill — 已达最大重试次数(%d)，放弃自动填充', MAX_AUTO_FILL_RETRIES);
     }
@@ -148,20 +149,20 @@ async function tryAutoFill() {
 // ── URL 自动登录标识检测 ──
 function shouldAutoLogin(): boolean {
   const url = new URL(window.location.href);
-  return url.searchParams.has('auto_login');
+  return url.searchParams.has(AUTO_LOGIN_PARAM);
 }
 
 function cleanAutoLoginParam(): void {
   const url = new URL(window.location.href);
-  url.searchParams.delete('auto_login');
+  url.searchParams.delete(AUTO_LOGIN_PARAM);
   window.history.replaceState({}, '', url.toString());
 }
 
 // 页面加载时即注入 insert script
 injectInsertScript();
 
-// 只有 URL 带 auto_login 标识时才触发自动填充
-if (shouldAutoLogin()) {
+// 只有 AUTO_LOGIN_ENABLED 开关开启 且 URL 带 auto_login 标识时才触发自动填充
+if (AUTO_LOGIN_ENABLED && shouldAutoLogin()) {
   cleanAutoLoginParam();
   tryAutoFill();
 }
@@ -169,18 +170,18 @@ if (shouldAutoLogin()) {
 // 监听来自 background 的消息，转发给 insert script
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   console.log('[AccountManage] onMessage 触发, message.type=%s', message.type);
-  if (message.type === 'PING') {
+  if (message.type === MSG_TYPE_PING) {
     console.log('[AccountManage] PONG, ready=true, insertInjected=%s, autoFilled=%s', _insertScriptInjected, _autoFilled);
     sendResponse({ ready: true, insertInjected: _insertScriptInjected, autoFilled: _autoFilled });
     return;
   }
-  if (message.type === 'LOGIN_REQUEST') {
+  if (message.type === MSG_TYPE_LOGIN_REQUEST) {
     const { username, password, autoSubmit } = message.data;
     console.log('[AccountManage] 收到 LOGIN_REQUEST, username=%s, autoSubmit=%s', username, autoSubmit);
 
     injectInsertScript().then(() => {
       const resultListener = (event: MessageEvent) => {
-        if (event.data?.type === 'LOGIN_RESULT' && event.data?.source === 'accountManage-insert') {
+        if (event.data?.type === MSG_TYPE_LOGIN_RESULT && event.data?.source === MSG_SOURCE_INSERT) {
           window.removeEventListener('message', resultListener);
           sendResponse(event.data.result);
         }
@@ -190,11 +191,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       setTimeout(() => {
         window.removeEventListener('message', resultListener);
         sendResponse({ success: false, message: '自动登录超时', filled: false, submitted: false });
-      }, 8000);
+      }, LOGIN_REQUEST_TIMEOUT_MS);
 
       window.postMessage({
-        type: 'LOGIN_REQUEST',
-        source: 'accountManage-content',
+        type: MSG_TYPE_LOGIN_REQUEST,
+        source: MSG_SOURCE_CONTENT,
         data: { username, password, autoSubmit: autoSubmit ?? true },
       }, '*');
     });
