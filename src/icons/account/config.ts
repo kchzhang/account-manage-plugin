@@ -2,6 +2,7 @@ import jenkinsIconUrl from './jenkins.png?url';
 import jumpserverIconUrl from './jumpserver.png?url';
 import gitlabIconUrl from './gitlab.png?url';
 import defaultIconUrl from './default.svg?url';
+import iconfontIconUrl from './iconfont.svg?url';
 
 export interface AccountIconOption {
   key: string;
@@ -14,6 +15,7 @@ export const ACCOUNT_ICON_OPTIONS: AccountIconOption[] = [
   { key: 'jumpserver', label: 'JumpServer', url: jumpserverIconUrl },
   { key: 'gitlab', label: 'GitLab', url: gitlabIconUrl },
   { key: 'default', label: 'Default', url: defaultIconUrl },
+  { key: 'iconfont', label: 'IconFont', url: iconfontIconUrl },
 ];
 
 export function getAccountIconUrl(iconKey: string): string {
